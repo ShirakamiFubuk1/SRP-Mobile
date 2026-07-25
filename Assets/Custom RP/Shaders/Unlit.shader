@@ -14,6 +14,11 @@
 
     SubShader
     {
+        HLSLINCLUDE
+		#include "../ShaderLibrary/Common.hlsl"
+		#include "UnlitInput.hlsl"
+		ENDHLSL
+
         Pass
         {
             Name "SRPDefaultUnlit"

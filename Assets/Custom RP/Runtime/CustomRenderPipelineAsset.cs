@@ -8,9 +8,17 @@ namespace srpMobile
     {
         [SerializeField] bool useDynamicBatching = true, useGPUInstancing = true, useSRPBatcher = true;
 
+        [SerializeField] private CameraBufferSettings cameraBuffer = new CameraBufferSettings();
+        
+        [SerializeField]
+        Shader cameraRendererShader = default;
+        
         protected override RenderPipeline CreatePipeline()
         {
-            return new CustomRenderPipeline(useDynamicBatching, useGPUInstancing, useSRPBatcher);
+            return new CustomRenderPipeline(
+                cameraBuffer, useDynamicBatching, useGPUInstancing, useSRPBatcher,
+                cameraRendererShader
+                );
         }
     }
 }
