@@ -57,11 +57,22 @@ namespace srpMobile
         {
             context.SetupCameraProperties(camera);
             CameraClearFlags flags = camera.clearFlags;
+            
+            bool clearColor =
+                flags == CameraClearFlags.Color ||
+                flags == CameraClearFlags.Skybox;
+
+            bool clearDepth =
+                flags != CameraClearFlags.Nothing;
+            
             buffer.ClearRenderTarget(
-                flags <= CameraClearFlags.Depth,
-                flags == CameraClearFlags.Color,
-                flags == CameraClearFlags.Color ? camera.backgroundColor.linear : Color.clear
+                clearDepth,
+                clearColor,
+                clearColor
+                    ? camera.backgroundColor.linear
+                    : Color.clear
             );
+            
             buffer.BeginSample(SampleName);
             ExecuteBuffer();
         }
@@ -97,8 +108,6 @@ namespace srpMobile
             context.DrawRenderers(
                 cullingResults, ref drawingSettings, ref filteringSettings
             );
-
-            context.DrawSkybox(camera);
 
             sortingSettings.criteria = SortingCriteria.CommonTransparent;
             drawingSettings.sortingSettings = sortingSettings;
