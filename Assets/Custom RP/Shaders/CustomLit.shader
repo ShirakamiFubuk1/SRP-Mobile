@@ -1,4 +1,4 @@
-﻿Shader "Custom RP/Unlit"
+Shader "Custom RP/Custom Lit"
 {
     Properties
     {
@@ -16,11 +16,11 @@
     {
         Pass
         {
-            Name "SRPDefaultUnlit"
+            Name "CustomLit"
 
             Tags
             {
-                "LightMode" = "SRPDefaultUnlit"
+                "LightMode" = "CustomLit"
             }
 
             Blend [_SrcBlend] [_DstBlend]
