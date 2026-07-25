@@ -15,3 +15,10 @@ MonoBehaviour:
   useDynamicBatching: 0
   useGPUInstancing: 1
   useSRPBatcher: 1
+  cameraBuffer:
+    copyColor: 1
+    copyColorReflection: 0
+    copyDepth: 1
+    copyDepthReflection: 0
+  cameraRendererShader: {fileID: 4800000, guid: e8f85eca57117dc4c91633d8828c58df,
+    type: 3}
