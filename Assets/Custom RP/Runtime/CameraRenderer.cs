@@ -7,7 +7,11 @@ namespace srpMobile
     {
         const string bufferName = "Render Camera";
 
-        static ShaderTagId unlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
+        static readonly ShaderTagId[] shaderTagIds =
+        {
+            new ShaderTagId("CustomLit"),
+            new ShaderTagId("SRPDefaultUnlit")
+        };
 
         CommandBuffer buffer = new CommandBuffer
         {
@@ -36,7 +40,8 @@ namespace srpMobile
             }
 
             Setup();
-            DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
+            DrawOpaque(useDynamicBatching, useGPUInstancing);
+            DrawTransparent(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
             DrawGizmos();
             Submit();
@@ -90,19 +95,6 @@ namespace srpMobile
             buffer.Clear();
         }
 
-        void DrawVisibleGeometry(
-            bool useDynamicBatching,
-            bool useGPUInstancing
-        )
-        {
-            DrawOpaque(
-                useDynamicBatching,
-                useGPUInstancing
-            );
-
-            DrawTransparent();
-        }
-        
         void DrawOpaque(
             bool useDynamicBatching,
             bool useGPUInstancing
@@ -114,15 +106,12 @@ namespace srpMobile
             };
 
 
-            var drawingSettings =
-                new DrawingSettings(
-                    unlitShaderTagId,
-                    sortingSettings
-                )
-                {
-                    enableDynamicBatching = useDynamicBatching,
-                    enableInstancing = useGPUInstancing
-                };
+            DrawingSettings drawingSettings =
+                CreateDrawingSettings(
+                    sortingSettings,
+                    useDynamicBatching,
+                    useGPUInstancing
+                );
 
 
             var filteringSettings =
@@ -138,7 +127,10 @@ namespace srpMobile
             );
         }
         
-        void DrawTransparent()
+        void DrawTransparent(
+            bool useDynamicBatching,
+            bool useGPUInstancing
+        )
         {
             var sortingSettings =
                 new SortingSettings(camera)
@@ -148,10 +140,11 @@ namespace srpMobile
                 };
 
 
-            var drawingSettings =
-                new DrawingSettings(
-                    unlitShaderTagId,
-                    sortingSettings
+            DrawingSettings drawingSettings =
+                CreateDrawingSettings(
+                    sortingSettings,
+                    useDynamicBatching,
+                    useGPUInstancing
                 );
 
 
@@ -166,6 +159,29 @@ namespace srpMobile
                 ref drawingSettings,
                 ref filteringSettings
             );
+        }
+
+        DrawingSettings CreateDrawingSettings(
+            SortingSettings sortingSettings,
+            bool useDynamicBatching,
+            bool useGPUInstancing
+        )
+        {
+            var drawingSettings = new DrawingSettings(
+                shaderTagIds[0],
+                sortingSettings
+            )
+            {
+                enableDynamicBatching = useDynamicBatching,
+                enableInstancing = useGPUInstancing
+            };
+
+            for (int i = 1; i < shaderTagIds.Length; i++)
+            {
+                drawingSettings.SetShaderPassName(i, shaderTagIds[i]);
+            }
+
+            return drawingSettings;
         }
     }
 }
