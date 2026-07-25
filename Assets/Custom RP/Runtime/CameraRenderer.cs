@@ -90,31 +90,81 @@ namespace srpMobile
             buffer.Clear();
         }
 
-        void DrawVisibleGeometry(bool useDynamicBatching, bool useGPUInstancing)
+        void DrawVisibleGeometry(
+            bool useDynamicBatching,
+            bool useGPUInstancing
+        )
+        {
+            DrawOpaque(
+                useDynamicBatching,
+                useGPUInstancing
+            );
+
+            DrawTransparent();
+        }
+        
+        void DrawOpaque(
+            bool useDynamicBatching,
+            bool useGPUInstancing
+        )
         {
             var sortingSettings = new SortingSettings(camera)
             {
                 criteria = SortingCriteria.CommonOpaque
             };
-            var drawingSettings = new DrawingSettings(
-                unlitShaderTagId, sortingSettings
-            )
-            {
-                enableDynamicBatching = useDynamicBatching,
-                enableInstancing = useGPUInstancing
-            };
-            var filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
+
+
+            var drawingSettings =
+                new DrawingSettings(
+                    unlitShaderTagId,
+                    sortingSettings
+                )
+                {
+                    enableDynamicBatching = useDynamicBatching,
+                    enableInstancing = useGPUInstancing
+                };
+
+
+            var filteringSettings =
+                new FilteringSettings(
+                    RenderQueueRange.opaque
+                );
+
 
             context.DrawRenderers(
-                cullingResults, ref drawingSettings, ref filteringSettings
+                cullingResults,
+                ref drawingSettings,
+                ref filteringSettings
             );
+        }
+        
+        void DrawTransparent()
+        {
+            var sortingSettings =
+                new SortingSettings(camera)
+                {
+                    criteria =
+                        SortingCriteria.CommonTransparent
+                };
 
-            sortingSettings.criteria = SortingCriteria.CommonTransparent;
-            drawingSettings.sortingSettings = sortingSettings;
-            filteringSettings.renderQueueRange = RenderQueueRange.transparent;
+
+            var drawingSettings =
+                new DrawingSettings(
+                    unlitShaderTagId,
+                    sortingSettings
+                );
+
+
+            var filteringSettings =
+                new FilteringSettings(
+                    RenderQueueRange.transparent
+                );
+
 
             context.DrawRenderers(
-                cullingResults, ref drawingSettings, ref filteringSettings
+                cullingResults,
+                ref drawingSettings,
+                ref filteringSettings
             );
         }
     }
