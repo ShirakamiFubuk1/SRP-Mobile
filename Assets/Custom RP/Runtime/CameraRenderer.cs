@@ -37,7 +37,7 @@ namespace srpMobile
         
         Texture2D missingTexture;
         
-        bool useColorTexture, useDepthTexture, useIntermediateBuffer;
+        bool useHDR, useScaledRendering, useColorTexture, useDepthTexture, useIntermediateBuffer;
         
         static CameraSettings defaultCameraSettings = new CameraSettings();
         
@@ -55,6 +55,8 @@ namespace srpMobile
         const string copyColorSampleName = "Copy Camera Color";
         const string copyDepthSampleName = "Copy Camera Depth";
         const string finalBlitSampleName = "Final Blit";
+        
+        public const float renderScaleMin = 0.1f, renderScaleMax = 2f;
         
         public void Render(
             ScriptableRenderContext context, Camera camera,
@@ -83,14 +85,28 @@ namespace srpMobile
                 useDepthTexture = bufferSettings.copyDepth && cameraSettings.copyDepth;
             }
 
+            float renderScale = Mathf.Clamp(bufferSettings.renderScale, renderScaleMin, renderScaleMax);
+            useScaledRendering = renderScale < 0.99f || renderScale > 1.01f;
             PrepareBuffer();
             PrepareForSceneWindow();
             if (!Cull())
             {
                 return;
             }
-            bufferSize.x = camera.pixelWidth;
-            bufferSize.y = camera.pixelHeight;
+            if (useScaledRendering)
+            {
+                bufferSize.x = Mathf.Max(
+                    1, (int)(camera.pixelWidth * renderScale)
+                );
+                bufferSize.y = Mathf.Max(
+                    1, (int)(camera.pixelHeight * renderScale)
+                );
+            }
+            else
+            {
+                bufferSize.x = camera.pixelWidth;
+                bufferSize.y = camera.pixelHeight;
+            }
 
             buffer.SetGlobalVector(bufferSizeId, new Vector4(
                 1f / bufferSize.x, 1f / bufferSize.y,
@@ -130,7 +146,7 @@ namespace srpMobile
             context.SetupCameraProperties(camera);
             CameraClearFlags flags = camera.clearFlags;
             
-            useIntermediateBuffer = useColorTexture || useDepthTexture;
+            useIntermediateBuffer = useScaledRendering || useColorTexture || useDepthTexture;
             if (useIntermediateBuffer)
             {
                 if (flags > CameraClearFlags.Color)

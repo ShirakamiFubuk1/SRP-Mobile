@@ -22,5 +22,6 @@ MonoBehaviour:
     copyColorReflection: 0
     copyDepth: 1
     copyDepthReflection: 0
+    renderScale: 1
   cameraRendererShader: {fileID: 4800000, guid: e8f85eca57117dc4c91633d8828c58df,
     type: 3}

@@ -24,8 +24,8 @@ namespace srpMobile
         public int ColorTextureDivisor =>
             1 << (int)colorTextureResolution;
         
-        // [Range(CameraRenderer.renderScaleMin, CameraRenderer.renderScaleMax)]
-        // public float renderScale;
+        [Range(CameraRenderer.renderScaleMin, CameraRenderer.renderScaleMax)]
+        public float renderScale;
 
         // public enum BicubicRescalingMode
         // {

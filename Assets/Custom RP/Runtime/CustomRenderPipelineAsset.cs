@@ -8,7 +8,12 @@ namespace srpMobile
     {
         [SerializeField] bool useDynamicBatching = true, useGPUInstancing = true, useSRPBatcher = true;
 
-        [SerializeField] private CameraBufferSettings cameraBuffer = new CameraBufferSettings();
+        [SerializeField] 
+        private CameraBufferSettings cameraBuffer = new CameraBufferSettings
+        {
+            allowHDR = true,
+            renderScale = 1f
+        };
         
         [SerializeField]
         Shader cameraRendererShader = default;
