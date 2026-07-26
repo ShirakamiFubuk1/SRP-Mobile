@@ -25,6 +25,7 @@ namespace srpMobile
         CullingResults cullingResults;
         
         static int
+            colorTextureSizeId = Shader.PropertyToID("_CameraColorTextureSize"),
             bufferSizeId = Shader.PropertyToID("_CameraBufferSize"),
             colorAttachmentId = Shader.PropertyToID("_CameraColorAttachment"),
             depthAttachmentId = Shader.PropertyToID("_CameraDepthAttachment"),
@@ -42,12 +43,18 @@ namespace srpMobile
         
         Vector2Int bufferSize;
 
-        private static bool copyTextureSupported = false;
-            // SystemInfo.copyTextureSupport > CopyTextureSupport.None;
+        private static bool copyTextureSupported =
+            SystemInfo.copyTextureSupport > CopyTextureSupport.None;
         
         Material material;
         
         static Rect fullViewRect = new Rect(0f, 0f, 1f, 1f);
+        
+        int colorTextureDivisor;
+        
+        const string copyColorSampleName = "Copy Camera Color";
+        const string copyDepthSampleName = "Copy Camera Depth";
+        const string finalBlitSampleName = "Final Blit";
         
         public void Render(
             ScriptableRenderContext context, Camera camera,
@@ -61,6 +68,9 @@ namespace srpMobile
             var crpCamera = camera.GetComponent<CustomRenderPipelineCamera>();
             CameraSettings cameraSettings =
                 crpCamera ? crpCamera.Settings : defaultCameraSettings;
+            
+            colorTextureDivisor =
+                bufferSettings.ColorTextureDivisor;
             
             if (camera.cameraType == CameraType.Reflection)
             {
@@ -285,20 +295,29 @@ namespace srpMobile
         
         void CopyAttachments()
         {
+            bool requiresRenderTargetReset = false;
+            
             if (useColorTexture)
             {
                 buffer.BeginSample(copyColorSampleName);
+                bool canCopyColorDirectly = colorTextureDivisor == 1 && copyTextureSupported;
+                int colorWidth = Mathf.Max(1, bufferSize.x / colorTextureDivisor);
+                int colorHeight = Mathf.Max(1, bufferSize.y / colorTextureDivisor);
+
+                buffer.SetGlobalVector(colorTextureSizeId, 
+                    new Vector4(1f / colorWidth, 1f / colorHeight, colorWidth, colorHeight));
                 buffer.GetTemporaryRT(
-                    colorTextureId, bufferSize.x, bufferSize.y,
+                    colorTextureId, colorWidth, colorHeight,
                     0, FilterMode.Bilinear, RenderTextureFormat.Default
                 );
-                if (copyTextureSupported)
+                if (canCopyColorDirectly)
                 {
                     buffer.CopyTexture(colorAttachmentId, colorTextureId);
                 }
                 else
                 {
                     Draw(colorAttachmentId, colorTextureId);
+                    requiresRenderTargetReset = true;
                 }
                 buffer.EndSample(copyColorSampleName);
             }
@@ -316,10 +335,11 @@ namespace srpMobile
                 else
                 {
                     Draw(depthAttachmentId, depthTextureId, true);
+                    requiresRenderTargetReset = true;
                 }
                 buffer.EndSample(copyDepthSampleName);
             }
-            if (!copyTextureSupported)
+            if (requiresRenderTargetReset)
             {
                 buffer.SetRenderTarget(
                     colorAttachmentId,
@@ -334,6 +354,8 @@ namespace srpMobile
         void Draw(
             RenderTargetIdentifier from, RenderTargetIdentifier to, bool isDepth = false
         ) {
+            buffer.SetGlobalFloat(srcBlendId, (float)BlendMode.One);
+            buffer.SetGlobalFloat(dstBlendId,(float)BlendMode.Zero);
             buffer.SetGlobalTexture(sourceTextureId, from);
             buffer.SetRenderTarget(
                 to, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store

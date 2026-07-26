@@ -2,46 +2,49 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 
-[Serializable]
-public class CameraSettings
+namespace srpMobile
 {
-    // public bool maskLights = false;
-    
-    // public enum RenderScaleMode { Inherit, Multiply, Override }
-
-    // public RenderScaleMode renderScaleMode = RenderScaleMode.Inherit;
-
-    // [Range(CameraRenderer.renderScaleMin, CameraRenderer.renderScaleMax)]
-    // public float renderScale = 1f;
-    
-    // public bool overridePostFX = false;
-
-    public bool copyColor = true, copyDepth = true;
-    
-    // [RenderingLayerMaskField]
-    // public int renderingLayerMask = -1;
-    
     [Serializable]
-    public struct FinalBlendMode
+    public class CameraSettings
     {
-        public BlendMode source, destination;
-    }
+        // public bool maskLights = false;
+        
+        // public enum RenderScaleMode { Inherit, Multiply, Override }
 
-    public FinalBlendMode finalBlendMode = new FinalBlendMode
-    {
-        source = BlendMode.One,
-        destination = BlendMode.Zero
-    };
+        // public RenderScaleMode renderScaleMode = RenderScaleMode.Inherit;
 
-    // public float GetRenderScale(float scale)
-    // {
-    //     return
-    //         renderScaleMode == RenderScaleMode.Inherit ? scale :
-    //         renderScaleMode == RenderScaleMode.Override ? renderScale :
-    //         scale * renderScale;
-    // }
-    
-    // public bool allowFXAA = false;
-    //
-    // public bool keepAlpha = false;
+        // [Range(CameraRenderer.renderScaleMin, CameraRenderer.renderScaleMax)]
+        // public float renderScale = 1f;
+        
+        // public bool overridePostFX = false;
+
+        public bool copyColor = true, copyDepth = true;
+        
+        // [RenderingLayerMaskField]
+        // public int renderingLayerMask = -1;
+        
+        [Serializable]
+        public struct FinalBlendMode
+        {
+            public BlendMode source, destination;
+        }
+
+        public FinalBlendMode finalBlendMode = new FinalBlendMode
+        {
+            source = BlendMode.One,
+            destination = BlendMode.Zero
+        };
+
+        // public float GetRenderScale(float scale)
+        // {
+        //     return
+        //         renderScaleMode == RenderScaleMode.Inherit ? scale :
+        //         renderScaleMode == RenderScaleMode.Override ? renderScale :
+        //         scale * renderScale;
+        // }
+        
+        // public bool allowFXAA = false;
+        //
+        // public bool keepAlpha = false;
+    }    
 }

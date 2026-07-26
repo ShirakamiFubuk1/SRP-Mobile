@@ -30,10 +30,6 @@ namespace srpMobile
         static Material errorMaterial;
 
         string SampleName { get; set; }
-        
-        const string copyColorSampleName = "Copy Camera Color";
-        const string copyDepthSampleName = "Copy Camera Depth";
-        const string finalBlitSampleName = "Final Blit";
 
         partial void DrawGizmos()
         {
@@ -85,6 +81,7 @@ namespace srpMobile
         }
 
 #else
+
 	const string SampleName = bufferName;
 
 #endif
