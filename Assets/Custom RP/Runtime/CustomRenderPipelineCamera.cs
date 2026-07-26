@@ -1,10 +1,13 @@
 ﻿using UnityEngine;
 
-[DisallowMultipleComponent, RequireComponent(typeof(Camera))]
-public class CustomRenderPipelineCamera : MonoBehaviour
+namespace srpMobile
 {
-    [SerializeField]
-    CameraSettings settings = default;
+    [DisallowMultipleComponent, RequireComponent(typeof(Camera))]
+    public class CustomRenderPipelineCamera : MonoBehaviour
+    {
+        [SerializeField]
+        CameraSettings settings = default;
 
-    public CameraSettings Settings => settings ?? (settings = new CameraSettings());
+        public CameraSettings Settings => settings ?? (settings = new CameraSettings());
+    }    
 }

@@ -5,6 +5,7 @@ TEXTURE2D(_CameraColorTexture);
 TEXTURE2D(_CameraDepthTexture);
 
 float4 _CameraBufferSize;
+float4 _CameraColorTextureSize;
 
 struct Fragment
 {
