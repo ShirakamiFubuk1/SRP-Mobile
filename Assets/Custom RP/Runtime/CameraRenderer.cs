@@ -93,6 +93,7 @@ namespace srpMobile
             {
                 return;
             }
+            useHDR = bufferSettings.allowHDR && camera.allowHDR;
             if (useScaledRendering)
             {
                 bufferSize.x = Mathf.Max(
@@ -146,7 +147,7 @@ namespace srpMobile
             context.SetupCameraProperties(camera);
             CameraClearFlags flags = camera.clearFlags;
             
-            useIntermediateBuffer = useScaledRendering || useColorTexture || useDepthTexture;
+            useIntermediateBuffer = useHDR || useScaledRendering || useColorTexture || useDepthTexture;
             if (useIntermediateBuffer)
             {
                 if (flags > CameraClearFlags.Color)
@@ -155,7 +156,8 @@ namespace srpMobile
                 }
                 buffer.GetTemporaryRT(
                     colorAttachmentId, bufferSize.x, bufferSize.y,
-                    0, FilterMode.Bilinear, RenderTextureFormat.Default
+                    0, FilterMode.Bilinear, useHDR ?
+                        RenderTextureFormat.DefaultHDR :RenderTextureFormat.Default
                 );
                 buffer.GetTemporaryRT(
                     depthAttachmentId, bufferSize.x, bufferSize.y,
@@ -324,7 +326,8 @@ namespace srpMobile
                     new Vector4(1f / colorWidth, 1f / colorHeight, colorWidth, colorHeight));
                 buffer.GetTemporaryRT(
                     colorTextureId, colorWidth, colorHeight,
-                    0, FilterMode.Bilinear, RenderTextureFormat.Default
+                    0, FilterMode.Bilinear, useHDR ?
+                        RenderTextureFormat.DefaultHDR :RenderTextureFormat.Default
                 );
                 if (canCopyColorDirectly)
                 {
