@@ -37,9 +37,13 @@ namespace srpMobile
             bloomTexture1Id = Shader.PropertyToID("_BloomTexture1"),
             bloomTexture2Id = Shader.PropertyToID("_BloomTexture2"),
             bloomTexture3Id = Shader.PropertyToID("_BloomTexture3"),
-            bloomTextureSizeId = Shader.PropertyToID("_BloomTextureSize"),
+            bloomTemp1Id = Shader.PropertyToID("_BloomTemp1"),
+            bloomTemp2Id = Shader.PropertyToID("_BloomTemp2"),
             bloomThresholdId = Shader.PropertyToID("_BloomThreshold"),
             bloomIntensityId = Shader.PropertyToID("_BloomIntensity"),
+            bloomExposureScaleId = Shader.PropertyToID("_BloomExposureScale"),
+            bloomSourceSizeId = Shader.PropertyToID("_BloomSourceSize"),
+            bloomWidthId = Shader.PropertyToID("_BloomWidth"),
             averageIlluminanceId = Shader.PropertyToID("_AverageIlluminance"),
             weatherColorId = Shader.PropertyToID("_WeatherColor"),
             inverseGammaId = Shader.PropertyToID("_InvGamma"),
@@ -71,11 +75,18 @@ namespace srpMobile
         const string finalBlitSampleName = "Final Blit";
         const string finalPostFXSampleName = "Final Post FX";
 
-        const float bloomThreshold = 1f;
+        const float bloomThreshold = 0.8f;
         
         public const float renderScaleMin = 0.1f, renderScaleMax = 2f;
         
-        const int finalPostFXPass = 3;
+        const int
+            bloomPrefilterPass = 2,
+            bloomDownsamplePass = 3,
+            bloomHorizontal5Pass = 4,
+            bloomVertical5Pass = 5,
+            bloomHorizontal9Pass = 6,
+            bloomVertical9Pass = 7,
+            finalPostFXPass = 8;
         
         public void Render(
             ScriptableRenderContext context, Camera camera,
@@ -432,48 +443,182 @@ namespace srpMobile
                 ? RenderTextureFormat.DefaultHDR
                 : RenderTextureFormat.Default;
 
-            DrawBloomTexture(
-                bloomTexture1Id, 3, bloomFormat, bloomOneThirdSampleName
-            );
-            DrawBloomTexture(
-                bloomTexture2Id, 4, bloomFormat, bloomOneQuarterSampleName
-            );
-            DrawBloomTexture(
-                bloomTexture3Id, 8, bloomFormat, bloomOneEighthSampleName
-            );
-        }
+            // 三张最终需要交给 FinalPostFX 的 Bloom 纹理尺寸。
+            int thirdWidth = Mathf.Max(1, bufferSize.x / 3);
+            int thirdHeight = Mathf.Max(1, bufferSize.y / 3);
 
-        void DrawBloomTexture(
-            int textureId, int divisor,
-            RenderTextureFormat format, string sampleName
-        )
-        {
-            int width = Mathf.Max(1, bufferSize.x / divisor);
-            int height = Mathf.Max(1, bufferSize.y / divisor);
+            int quarterWidth = Mathf.Max(1, bufferSize.x / 4);
+            int quarterHeight = Mathf.Max(1, bufferSize.y / 4);
 
-            buffer.BeginSample(sampleName);
+            int eighthWidth = Mathf.Max(1, bufferSize.x / 8);
+            int eighthHeight = Mathf.Max(1, bufferSize.y / 8);
+
+            // 最终保留的三张 Bloom 纹理。
             buffer.GetTemporaryRT(
-                textureId, width, height,
-                0, FilterMode.Bilinear, format
+                bloomTexture1Id,
+                thirdWidth,
+                thirdHeight,
+                0,
+                FilterMode.Bilinear,
+                bloomFormat
             );
-            buffer.SetGlobalVector(
-                bloomTextureSizeId,
-                new Vector4(1f / width, 1f / height, width, height)
+            buffer.GetTemporaryRT(
+                bloomTexture2Id,
+                quarterWidth,
+                quarterHeight,
+                0,
+                FilterMode.Bilinear,
+                bloomFormat
+            );
+            buffer.GetTemporaryRT(
+                bloomTexture3Id,
+                eighthWidth,
+                eighthHeight,
+                0,
+                FilterMode.Bilinear,
+                bloomFormat
+            );
+
+            // 分离式模糊不能同时读取和写入同一张纹理，
+            // 因此需要两张不同尺寸的中间纹理。
+            buffer.GetTemporaryRT(
+                bloomTemp1Id,
+                quarterWidth,
+                quarterHeight,
+                0,
+                FilterMode.Bilinear,
+                bloomFormat
+            );
+            buffer.GetTemporaryRT(
+                bloomTemp2Id,
+                eighthWidth,
+                eighthHeight,
+                0,
+                FilterMode.Bilinear,
+                bloomFormat
+            );
+
+            buffer.SetGlobalFloat(
+                bloomThresholdId,
+                bloomThreshold
             );
             buffer.SetGlobalFloat(
-                bloomThresholdId, bloomThreshold
+                bloomExposureScaleId,
+                1f
             );
-            buffer.SetGlobalTexture(sourceTextureId, colorAttachmentId);
+            buffer.SetGlobalFloat(
+                bloomWidthId,
+                1f
+            );
+
+            // 第一步：
+            // Camera Color -> 1/3 Bloom
+            // 阈值提取、五点采样和 Karis Average。
+            buffer.BeginSample(bloomOneThirdSampleName);
+
+            DrawBloomPass(
+                new RenderTargetIdentifier(colorAttachmentId),
+                bufferSize.x,
+                bufferSize.y,
+                new RenderTargetIdentifier(bloomTexture1Id),
+                bloomPrefilterPass
+            );
+
+            buffer.EndSample(bloomOneThirdSampleName);
+
+            // 第二到第四步：
+            // 1/3 -> 1/4 Downsample
+            // 1/4 Horizontal 5
+            // 1/4 Vertical 5
+            buffer.BeginSample(bloomOneQuarterSampleName);
+
+            DrawBloomPass(
+                new RenderTargetIdentifier(bloomTexture1Id),
+                thirdWidth,
+                thirdHeight,
+                new RenderTargetIdentifier(bloomTexture2Id),
+                bloomDownsamplePass
+            );
+
+            DrawBloomPass(
+                new RenderTargetIdentifier(bloomTexture2Id),
+                quarterWidth,
+                quarterHeight,
+                new RenderTargetIdentifier(bloomTemp1Id),
+                bloomHorizontal5Pass
+            );
+
+            DrawBloomPass(
+                new RenderTargetIdentifier(bloomTemp1Id),
+                quarterWidth,
+                quarterHeight,
+                new RenderTargetIdentifier(bloomTexture2Id),
+                bloomVertical5Pass
+            );
+
+            buffer.EndSample(bloomOneQuarterSampleName);
+
+            // 第五到第六步：
+            // 1/4 Horizontal 9，并输出到 1/8
+            // 1/8 Vertical 9，得到最终 BloomTexture3
+            buffer.BeginSample(bloomOneEighthSampleName);
+
+            DrawBloomPass(
+                new RenderTargetIdentifier(bloomTexture2Id),
+                quarterWidth,
+                quarterHeight,
+                new RenderTargetIdentifier(bloomTemp2Id),
+                bloomHorizontal9Pass
+            );
+
+            DrawBloomPass(
+                new RenderTargetIdentifier(bloomTemp2Id),
+                eighthWidth,
+                eighthHeight,
+                new RenderTargetIdentifier(bloomTexture3Id),
+                bloomVertical9Pass
+            );
+
+            buffer.EndSample(bloomOneEighthSampleName);
+
+            // 中间纹理后续不再使用，可以在命令序列末尾释放。
+            // 三张最终 Bloom 纹理由 Cleanup() 在 FinalPostFX 后释放。
+            buffer.ReleaseTemporaryRT(bloomTemp1Id);
+            buffer.ReleaseTemporaryRT(bloomTemp2Id);
+        }
+
+        // [新增] 所有 Bloom 全屏 Pass 共用的绘制方法
+        void DrawBloomPass(
+            RenderTargetIdentifier sourceTexture,
+            int sourceWidth,
+            int sourceHeight,
+            RenderTargetIdentifier destinationTexture,
+            int pass
+        )
+        {
+            // 每一个 Pass 绘制前更新：
+            // 1. _SourceTexture
+            // 2. 输入纹理宽高
+            // 3. 输入纹理的 Texel Size
+            SetBloomSource(
+                sourceTexture,
+                sourceWidth,
+                sourceHeight
+            );
+
             buffer.SetRenderTarget(
-                textureId,
+                destinationTexture,
                 RenderBufferLoadAction.DontCare,
                 RenderBufferStoreAction.Store
             );
+
             buffer.DrawProcedural(
-                Matrix4x4.identity, material, 2,
-                MeshTopology.Triangles, 3
+                Matrix4x4.identity,
+                material,
+                pass,
+                MeshTopology.Triangles,
+                3
             );
-            buffer.EndSample(sampleName);
         }
         
         public void Dispose()
@@ -617,6 +762,28 @@ namespace srpMobile
             );
 
             buffer.EndSample(finalPostFXSampleName);
+        }
+        
+        void SetBloomSource(
+            RenderTargetIdentifier source,
+            int sourceWidth,
+            int sourceHeight
+        )
+        {
+            buffer.SetGlobalTexture(
+                sourceTextureId,
+                source
+            );
+
+            buffer.SetGlobalVector(
+                bloomSourceSizeId,
+                new Vector4(
+                    sourceWidth,
+                    sourceHeight,
+                    1f / sourceWidth,
+                    1f / sourceHeight
+                )
+            );
         }
     }
 }

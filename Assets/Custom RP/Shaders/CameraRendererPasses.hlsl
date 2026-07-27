@@ -5,14 +5,25 @@ TEXTURE2D(_SourceTexture);
 TEXTURE2D(_BloomTexture1);
 TEXTURE2D(_BloomTexture2);
 TEXTURE2D(_BloomTexture3);
+TEXTURE2D(_BloomTemp1);
+TEXTURE2D(_BloomTemp2);
 
-float4 _BloomTextureSize;
 float _BloomThreshold;
 float4 _AverageIlluminance;
 float4 _WeatherColor;
 float _BloomIntensity;
 float _InvGamma;
 float _AdjustAlpha;
+float _BloomExposureScale;
+float4 _BloomSourceSize;
+float _BloomWidth;
+
+static const float3 bloomLuminanceWeights =
+    float3(
+        0.29899999,
+        0.58700001,
+        0.114
+    );
 
 struct Varyings
 {
@@ -49,37 +60,125 @@ float CopyDepthPassFragment(Varyings input) : SV_DEPTH
     return SAMPLE_DEPTH_TEXTURE_LOD(_SourceTexture, sampler_point_clamp, input.screenUV, 0);
 }
 
+float BloomLuminance(float3 color)
+{
+    return dot(
+        color,
+        bloomLuminanceWeights
+    );
+}
+
 float3 ApplyBloomThreshold(float3 color)
 {
-    color = min(color, 60.0);
-    float brightness = max(color.r, max(color.g, color.b));
-    float contribution =
-        max(brightness - _BloomThreshold, 0.0) /
-        max(brightness, 0.00001);
+    // 对应原 Shader 的最大 HDR 限制。
+    color = min(
+        color,
+        float3(16.0, 16.0, 16.0)
+    );
+
+    float luminance =
+        BloomLuminance(color);
+
+    float exposedLuminance =
+        luminance * _BloomExposureScale;
+
+    float contribution = saturate(
+        (
+            exposedLuminance -
+            _BloomThreshold
+        ) /
+        (
+            exposedLuminance +
+            _BloomThreshold +
+            0.0001
+        )
+    );
+
     return color * contribution;
 }
 
-float4 BloomPrefilterPassFragment(Varyings input) : SV_TARGET
+float KarisWeight(float3 color)
 {
-    float2 offset = _BloomTextureSize.xy * 0.5;
-    float3 color =
-        ApplyBloomThreshold(SAMPLE_TEXTURE2D_LOD(
-            _SourceTexture, sampler_linear_clamp,
-            input.screenUV + float2(-offset.x, -offset.y), 0
-        ).rgb);
-    color += ApplyBloomThreshold(SAMPLE_TEXTURE2D_LOD(
-        _SourceTexture, sampler_linear_clamp,
-        input.screenUV + float2(offset.x, -offset.y), 0
-    ).rgb);
-    color += ApplyBloomThreshold(SAMPLE_TEXTURE2D_LOD(
-        _SourceTexture, sampler_linear_clamp,
-        input.screenUV + float2(-offset.x, offset.y), 0
-    ).rgb);
-    color += ApplyBloomThreshold(SAMPLE_TEXTURE2D_LOD(
-        _SourceTexture, sampler_linear_clamp,
-        input.screenUV + float2(offset.x, offset.y), 0
-    ).rgb);
-    return float4(color * 0.25, 1.0);
+    return rcp(
+        BloomLuminance(color) + 1.0
+    );
+}
+
+float3 SampleBloomSource(float2 uv)
+{
+    float3 color = SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv,
+        0
+    ).rgb;
+
+    return ApplyBloomThreshold(color);
+}
+
+float4 BloomPrefilterPassFragment(
+    Varyings input
+) : SV_TARGET
+{
+    // 当前约定：
+    // _BloomSourceSize.xy = 当前输入纹理宽高
+    // _BloomSourceSize.zw = 当前输入纹理 Texel Size
+    float2 offset =
+        _BloomSourceSize.zw * 0.33;
+
+    float3 sample0 = SampleBloomSource(
+        input.screenUV +
+        float2(-offset.x, -offset.y)
+    );
+
+    float3 sample1 = SampleBloomSource(
+        input.screenUV +
+        float2(offset.x, -offset.y)
+    );
+
+    float3 sample2 = SampleBloomSource(
+        input.screenUV +
+        float2(-offset.x, offset.y)
+    );
+
+    float3 sample3 = SampleBloomSource(
+        input.screenUV +
+        float2(offset.x, offset.y)
+    );
+
+    float3 sample4 = SampleBloomSource(
+        input.screenUV
+    );
+
+    float weight0 = KarisWeight(sample0);
+    float weight1 = KarisWeight(sample1);
+    float weight2 = KarisWeight(sample2);
+    float weight3 = KarisWeight(sample3);
+    float weight4 = KarisWeight(sample4);
+
+    float weightSum =
+        weight0 +
+        weight1 +
+        weight2 +
+        weight3 +
+        weight4;
+
+    float3 bloomColor =
+        sample0 * weight0 +
+        sample1 * weight1 +
+        sample2 * weight2 +
+        sample3 * weight3 +
+        sample4 * weight4;
+
+    // 原 Shader 使用 0.5 / weightSum，
+    // 因此这里保留原始能量比例。
+    bloomColor *=
+        0.5 / max(weightSum, 0.0001);
+
+    return float4(
+        bloomColor,
+        1.0
+    );
 }
 
 float4 FinalPostFXFragment(Varyings input) : SV_TARGET
@@ -247,6 +346,302 @@ float4 FinalPostFXFragment(Varyings input) : SV_TARGET
         finalColor,
         finalAlpha
     );
+}
+
+float4 BloomDownsampleFragment(
+    Varyings input
+) : SV_TARGET
+{
+    float2 offset =
+        _BloomSourceSize.zw * 0.25;
+
+    float4 color = SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        input.screenUV +
+        float2(-offset.x, -offset.y),
+        0
+    );
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        input.screenUV +
+        float2(offset.x, -offset.y),
+        0
+    );
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        input.screenUV +
+        float2(-offset.x, offset.y),
+        0
+    );
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        input.screenUV +
+        float2(offset.x, offset.y),
+        0
+    );
+
+    return color * 0.25;
+}
+
+float4 BloomBlurHorizontal5Fragment(
+    Varyings input
+) : SV_TARGET
+{
+    float offset =
+        _BloomSourceSize.z *
+        _BloomWidth;
+
+    float2 uv = input.screenUV;
+
+    float4 color =
+        SAMPLE_TEXTURE2D_LOD(
+            _SourceTexture,
+            sampler_linear_clamp,
+            uv + float2(-2.0 * offset, 0.0),
+            0
+        ) * 0.111703;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(-1.0 * offset, 0.0),
+        0
+    ) * 0.236476;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv,
+        0
+    ) * 0.30364099;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(1.0 * offset, 0.0),
+        0
+    ) * 0.236476;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(2.0 * offset, 0.0),
+        0
+    ) * 0.111703;
+
+    return color;
+}
+
+float4 BloomBlurVertical5Fragment(
+    Varyings input
+) : SV_TARGET
+{
+    float offset =
+        _BloomSourceSize.w *
+        _BloomWidth;
+
+    float2 uv = input.screenUV;
+
+    float4 color =
+        SAMPLE_TEXTURE2D_LOD(
+            _SourceTexture,
+            sampler_linear_clamp,
+            uv + float2(0.0, -2.0 * offset),
+            0
+        ) * 0.111703;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, -1.0 * offset),
+        0
+    ) * 0.236476;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv,
+        0
+    ) * 0.30364099;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, 1.0 * offset),
+        0
+    ) * 0.236476;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, 2.0 * offset),
+        0
+    ) * 0.111703;
+
+    return color;
+}
+
+float4 BloomBlurHorizontal9Fragment(
+    Varyings input
+) : SV_TARGET
+{
+    float offset =
+        _BloomSourceSize.z *
+        _BloomWidth *
+        1.5;
+
+    float2 uv = input.screenUV;
+
+    float4 color =
+        SAMPLE_TEXTURE2D_LOD(
+            _SourceTexture,
+            sampler_linear_clamp,
+            uv + float2(-4.0 * offset, 0.0),
+            0
+        ) * 0.032845002;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(-3.0 * offset, 0.0),
+        0
+    ) * 0.071489997;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(-2.0 * offset, 0.0),
+        0
+    ) * 0.124602;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(-1.0 * offset, 0.0),
+        0
+    ) * 0.173896;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv,
+        0
+    ) * 0.194332;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(1.0 * offset, 0.0),
+        0
+    ) * 0.173896;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(2.0 * offset, 0.0),
+        0
+    ) * 0.124602;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(3.0 * offset, 0.0),
+        0
+    ) * 0.071491003;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(4.0 * offset, 0.0),
+        0
+    ) * 0.032845002;
+
+    return color;
+}
+
+float4 BloomBlurVertical9Fragment(
+    Varyings input
+) : SV_TARGET
+{
+    float offset =
+        _BloomSourceSize.w *
+        _BloomWidth *
+        1.5;
+
+    float2 uv = input.screenUV;
+
+    float4 color =
+        SAMPLE_TEXTURE2D_LOD(
+            _SourceTexture,
+            sampler_linear_clamp,
+            uv + float2(0.0, -4.0 * offset),
+            0
+        ) * 0.032845002;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, -3.0 * offset),
+        0
+    ) * 0.071489997;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, -2.0 * offset),
+        0
+    ) * 0.124602;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, -1.0 * offset),
+        0
+    ) * 0.173896;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv,
+        0
+    ) * 0.194332;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, 1.0 * offset),
+        0
+    ) * 0.173896;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, 2.0 * offset),
+        0
+    ) * 0.124602;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, 3.0 * offset),
+        0
+    ) * 0.071491003;
+
+    color += SAMPLE_TEXTURE2D_LOD(
+        _SourceTexture,
+        sampler_linear_clamp,
+        uv + float2(0.0, 4.0 * offset),
+        0
+    ) * 0.032845002;
+
+    return color;
 }
 
 #endif
