@@ -33,11 +33,17 @@ namespace srpMobile
             depthTextureId = Shader.PropertyToID("_CameraDepthTexture"),
             sourceTextureId = Shader.PropertyToID("_SourceTexture"),
             srcBlendId = Shader.PropertyToID("_CameraSrcBlend"),
-            dstBlendId = Shader.PropertyToID("_CameraDstBlend");
+            dstBlendId = Shader.PropertyToID("_CameraDstBlend"),
+            bloomTexture1Id = Shader.PropertyToID("_BloomTexture1"),
+            bloomTexture2Id = Shader.PropertyToID("_BloomTexture2"),
+            bloomTexture3Id = Shader.PropertyToID("_BloomTexture3"),
+            bloomTextureSizeId = Shader.PropertyToID("_BloomTextureSize"),
+            bloomThresholdId = Shader.PropertyToID("_BloomThreshold");
         
         Texture2D missingTexture;
         
-        bool useHDR, useScaledRendering, useColorTexture, useDepthTexture, useIntermediateBuffer;
+        bool useHDR, useBloomTextures, useScaledRendering, useColorTexture, useDepthTexture,
+            useIntermediateBuffer;
         
         static CameraSettings defaultCameraSettings = new CameraSettings();
         
@@ -54,7 +60,12 @@ namespace srpMobile
         
         const string copyColorSampleName = "Copy Camera Color";
         const string copyDepthSampleName = "Copy Camera Depth";
+        const string bloomOneThirdSampleName = "Bloom 1/3";
+        const string bloomOneQuarterSampleName = "Bloom 1/4";
+        const string bloomOneEighthSampleName = "Bloom 1/8";
         const string finalBlitSampleName = "Final Blit";
+
+        const float bloomThreshold = 1f;
         
         public const float renderScaleMin = 0.1f, renderScaleMax = 2f;
         
@@ -94,6 +105,9 @@ namespace srpMobile
                 return;
             }
             useHDR = bufferSettings.allowHDR && camera.allowHDR;
+            useBloomTextures =
+                useHDR &&
+                camera.cameraType != CameraType.Reflection;
             if (useScaledRendering)
             {
                 bufferSize.x = Mathf.Max(
@@ -121,6 +135,10 @@ namespace srpMobile
             }
             DrawTransparent(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
+            if (useBloomTextures)
+            {
+                GenerateBloomTextures();
+            }
             if (useIntermediateBuffer)
             {
                 DrawFinal(cameraSettings.finalBlendMode);
@@ -147,7 +165,9 @@ namespace srpMobile
             context.SetupCameraProperties(camera);
             CameraClearFlags flags = camera.clearFlags;
             
-            useIntermediateBuffer = useHDR || useScaledRendering || useColorTexture || useDepthTexture;
+            useIntermediateBuffer =
+                useHDR || useBloomTextures || useScaledRendering ||
+                useColorTexture || useDepthTexture;
             if (useIntermediateBuffer)
             {
                 if (flags > CameraClearFlags.Color)
@@ -308,6 +328,12 @@ namespace srpMobile
                 {
                     buffer.ReleaseTemporaryRT(depthTextureId);
                 }
+                if (useBloomTextures)
+                {
+                    buffer.ReleaseTemporaryRT(bloomTexture1Id);
+                    buffer.ReleaseTemporaryRT(bloomTexture2Id);
+                    buffer.ReleaseTemporaryRT(bloomTexture3Id);
+                }
             }
         }
         
@@ -382,6 +408,56 @@ namespace srpMobile
             buffer.DrawProcedural(
                 Matrix4x4.identity, material, isDepth ? 1 : 0, MeshTopology.Triangles, 3
             );
+        }
+
+        void GenerateBloomTextures()
+        {
+            RenderTextureFormat bloomFormat = useHDR
+                ? RenderTextureFormat.DefaultHDR
+                : RenderTextureFormat.Default;
+
+            DrawBloomTexture(
+                bloomTexture1Id, 3, bloomFormat, bloomOneThirdSampleName
+            );
+            DrawBloomTexture(
+                bloomTexture2Id, 4, bloomFormat, bloomOneQuarterSampleName
+            );
+            DrawBloomTexture(
+                bloomTexture3Id, 8, bloomFormat, bloomOneEighthSampleName
+            );
+        }
+
+        void DrawBloomTexture(
+            int textureId, int divisor,
+            RenderTextureFormat format, string sampleName
+        )
+        {
+            int width = Mathf.Max(1, bufferSize.x / divisor);
+            int height = Mathf.Max(1, bufferSize.y / divisor);
+
+            buffer.BeginSample(sampleName);
+            buffer.GetTemporaryRT(
+                textureId, width, height,
+                0, FilterMode.Bilinear, format
+            );
+            buffer.SetGlobalVector(
+                bloomTextureSizeId,
+                new Vector4(1f / width, 1f / height, width, height)
+            );
+            buffer.SetGlobalFloat(
+                bloomThresholdId, bloomThreshold
+            );
+            buffer.SetGlobalTexture(sourceTextureId, colorAttachmentId);
+            buffer.SetRenderTarget(
+                textureId,
+                RenderBufferLoadAction.DontCare,
+                RenderBufferStoreAction.Store
+            );
+            buffer.DrawProcedural(
+                Matrix4x4.identity, material, 2,
+                MeshTopology.Triangles, 3
+            );
+            buffer.EndSample(sampleName);
         }
         
         public void Dispose()
