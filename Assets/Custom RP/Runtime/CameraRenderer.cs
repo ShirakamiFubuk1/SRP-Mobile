@@ -38,7 +38,12 @@ namespace srpMobile
             bloomTexture2Id = Shader.PropertyToID("_BloomTexture2"),
             bloomTexture3Id = Shader.PropertyToID("_BloomTexture3"),
             bloomTextureSizeId = Shader.PropertyToID("_BloomTextureSize"),
-            bloomThresholdId = Shader.PropertyToID("_BloomThreshold");
+            bloomThresholdId = Shader.PropertyToID("_BloomThreshold"),
+            bloomIntensityId = Shader.PropertyToID("_BloomIntensity"),
+            averageIlluminanceId = Shader.PropertyToID("_AverageIlluminance"),
+            weatherColorId = Shader.PropertyToID("_WeatherColor"),
+            inverseGammaId = Shader.PropertyToID("_InvGamma"),
+            adjustAlphaId = Shader.PropertyToID("_AdjustAlpha");
         
         Texture2D missingTexture;
         
@@ -64,10 +69,13 @@ namespace srpMobile
         const string bloomOneQuarterSampleName = "Bloom 1/4";
         const string bloomOneEighthSampleName = "Bloom 1/8";
         const string finalBlitSampleName = "Final Blit";
+        const string finalPostFXSampleName = "Final Post FX";
 
         const float bloomThreshold = 1f;
         
         public const float renderScaleMin = 0.1f, renderScaleMax = 2f;
+        
+        const int finalPostFXPass = 3;
         
         public void Render(
             ScriptableRenderContext context, Camera camera,
@@ -135,11 +143,19 @@ namespace srpMobile
             }
             DrawTransparent(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
+            
+            bool usePostFX = useBloomTextures;
+            
             if (useBloomTextures)
             {
                 GenerateBloomTextures();
             }
-            if (useIntermediateBuffer)
+            if (usePostFX)
+            {
+                DrawPostFX(cameraSettings.finalBlendMode);
+                ExecuteBuffer();
+            }
+            else if (useIntermediateBuffer)
             {
                 DrawFinal(cameraSettings.finalBlendMode);
                 ExecuteBuffer();
@@ -497,6 +513,110 @@ namespace srpMobile
             };
             missingTexture.SetPixel(0, 0, Color.white * 0.5f);
             missingTexture.Apply(true, true);
+        }
+        
+        void DrawPostFX(
+            CameraSettings.FinalBlendMode finalBlendMode
+        )
+        {
+            buffer.BeginSample(finalPostFXSampleName);
+            
+            buffer.SetGlobalFloat(
+                bloomIntensityId,
+                1.5f
+            );
+
+            buffer.SetGlobalVector(
+                averageIlluminanceId,
+                new Vector4(
+                    1f, // 曝光除数
+                    0f,
+                    0f,
+                    0f  // Shoulder
+                )
+            );
+
+            buffer.SetGlobalColor(
+                weatherColorId,
+                Color.white
+            );
+
+            buffer.SetGlobalFloat(
+                inverseGammaId,
+                1f
+            );
+
+            buffer.SetGlobalFloat(
+                adjustAlphaId,
+                0f
+            );
+
+            // Tex0：包含 Opaque 和 Transparent 的完整 HDR 场景。
+            buffer.SetGlobalTexture(
+                sourceTextureId,
+                new RenderTargetIdentifier(colorAttachmentId)
+            );
+
+            // Tex1、Tex2、Tex3。
+            // GetTemporaryRT 已经会用这些 ID 注册全局纹理，
+            // 这里再次显式绑定是为了让关系更清楚。
+            buffer.SetGlobalTexture(
+                bloomTexture1Id,
+                new RenderTargetIdentifier(bloomTexture1Id)
+            );
+            buffer.SetGlobalTexture(
+                bloomTexture2Id,
+                new RenderTargetIdentifier(bloomTexture2Id)
+            );
+            buffer.SetGlobalTexture(
+                bloomTexture3Id,
+                new RenderTargetIdentifier(bloomTexture3Id)
+            );
+
+            // 继续兼容当前 Camera 的最终混合模式。
+            buffer.SetGlobalFloat(
+                srcBlendId,
+                (float)finalBlendMode.source
+            );
+            buffer.SetGlobalFloat(
+                dstBlendId,
+                (float)finalBlendMode.destination
+            );
+
+            // 最终后处理直接输出到 CameraTarget。
+            buffer.SetRenderTarget(
+                BuiltinRenderTextureType.CameraTarget,
+                finalBlendMode.destination == BlendMode.Zero &&
+                camera.rect == fullViewRect
+                    ? RenderBufferLoadAction.DontCare
+                    : RenderBufferLoadAction.Load,
+                RenderBufferStoreAction.Store
+            );
+
+            // Render Scale 生效时，内部纹理尺寸与最终视口不同，
+            // 因此最终输出仍然使用 Camera 的真实 pixelRect。
+            buffer.SetViewport(camera.pixelRect);
+
+            // 三角形数量为 3，生成覆盖全屏的单个大三角形。
+            buffer.DrawProcedural(
+                Matrix4x4.identity,
+                material,
+                finalPostFXPass,
+                MeshTopology.Triangles,
+                3
+            );
+
+            // 恢复默认覆盖混合，避免影响后续相机。
+            buffer.SetGlobalFloat(
+                srcBlendId,
+                (float)BlendMode.One
+            );
+            buffer.SetGlobalFloat(
+                dstBlendId,
+                (float)BlendMode.Zero
+            );
+
+            buffer.EndSample(finalPostFXSampleName);
         }
     }
 }

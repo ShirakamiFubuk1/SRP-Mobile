@@ -48,6 +48,18 @@
 				#pragma fragment BloomPrefilterPassFragment
 			ENDHLSL
 		}
+		
+		Pass
+		{
+		    Name "Final Post FX"
 
+		    Blend [_CameraSrcBlend] [_CameraDstBlend]
+
+		    HLSLPROGRAM
+		        #pragma target 3.5
+		        #pragma vertex DefaultPassVertex
+		        #pragma fragment FinalPostFXFragment
+		    ENDHLSL
+		}
 	}
 }
