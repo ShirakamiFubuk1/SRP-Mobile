@@ -16,7 +16,7 @@ namespace srpMobile
         // [Range(CameraRenderer.renderScaleMin, CameraRenderer.renderScaleMax)]
         // public float renderScale = 1f;
         
-        // public bool overridePostFX = false;
+        public bool allowPostFX = true;
 
         public bool copyColor = true, copyDepth = true;
         

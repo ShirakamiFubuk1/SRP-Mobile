@@ -37,5 +37,84 @@
 				#pragma fragment CopyDepthPassFragment
 			ENDHLSL
 		}
+
+		Pass
+		{
+			Name "Bloom Prefilter"
+
+			HLSLPROGRAM
+				#pragma target 3.5
+				#pragma vertex DefaultPassVertex
+				#pragma fragment BloomPrefilterPassFragment
+			ENDHLSL
+		}
+
+		Pass
+		{
+			Name "Bloom Downsample"
+
+			HLSLPROGRAM
+				#pragma target 3.5
+				#pragma vertex DefaultPassVertex
+				#pragma fragment BloomDownsampleFragment
+			ENDHLSL
+		}
+
+		Pass
+		{
+			Name "Bloom Horizontal 5"
+
+			HLSLPROGRAM
+				#pragma target 3.5
+				#pragma vertex DefaultPassVertex
+				#pragma fragment BloomBlurHorizontal5Fragment
+			ENDHLSL
+		}
+
+		Pass
+		{
+			Name "Bloom Vertical 5"
+
+			HLSLPROGRAM
+				#pragma target 3.5
+				#pragma vertex DefaultPassVertex
+				#pragma fragment BloomBlurVertical5Fragment
+			ENDHLSL
+		}
+
+		Pass
+		{
+			Name "Bloom Horizontal 9"
+
+			HLSLPROGRAM
+				#pragma target 3.5
+				#pragma vertex DefaultPassVertex
+				#pragma fragment BloomBlurHorizontal9Fragment
+			ENDHLSL
+		}
+
+		Pass
+		{
+			Name "Bloom Vertical 9"
+
+			HLSLPROGRAM
+				#pragma target 3.5
+				#pragma vertex DefaultPassVertex
+				#pragma fragment BloomBlurVertical9Fragment
+			ENDHLSL
+		}
+		
+		Pass
+		{
+		    Name "Final Post FX"
+
+		    Blend [_CameraSrcBlend] [_CameraDstBlend]
+
+		    HLSLPROGRAM
+		        #pragma target 3.5
+		        #pragma vertex DefaultPassVertex
+		        #pragma fragment FinalPostFXFragment
+		    ENDHLSL
+		}
 	}
 }

@@ -11,12 +11,16 @@ namespace srpMobile
         
         CameraBufferSettings cameraBufferSettings;
 
+        PostFXSettings postFXSettings;
+
         public CustomRenderPipeline(
             CameraBufferSettings cameraBufferSettings,
+            PostFXSettings postFXSettings,
             bool useDynamicBatching, bool useGPUInstancing, bool useSRPBatcher, Shader cameraRendererShader
         )
         {
             this.cameraBufferSettings = cameraBufferSettings;
+            this.postFXSettings = postFXSettings;
             this.useDynamicBatching = useDynamicBatching;
             this.useGPUInstancing = useGPUInstancing;
             GraphicsSettings.useScriptableRenderPipelineBatching = useSRPBatcher;
@@ -30,7 +34,8 @@ namespace srpMobile
             foreach (Camera camera in cameras)
             {
                 renderer.Render(
-                    context, camera, cameraBufferSettings, useDynamicBatching, useGPUInstancing
+                    context, camera, cameraBufferSettings, postFXSettings,
+                    useDynamicBatching, useGPUInstancing
                 );
             }
         }
