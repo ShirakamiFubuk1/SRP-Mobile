@@ -15,7 +15,7 @@ float _BloomIntensity;
 float _InvGamma;
 float _AdjustAlpha;
 float _BloomExposureScale;
-float4 _BloomSourceSize;
+float4 _BloomTargetSize;
 float _BloomWidth;
 
 static const float3 bloomLuminanceWeights =
@@ -120,11 +120,10 @@ float4 BloomPrefilterPassFragment(
     Varyings input
 ) : SV_TARGET
 {
-    // 当前约定：
-    // _BloomSourceSize.xy = 当前输入纹理宽高
-    // _BloomSourceSize.zw = 当前输入纹理 Texel Size
+    // _BloomTargetSize.xy = 当前输出 RT 的宽高
+    // _BloomTargetSize.zw = 当前输出 RT 的 Texel Size
     float2 offset =
-        _BloomSourceSize.zw * 0.33;
+        _BloomTargetSize.zw * 0.33;
 
     float3 sample0 = SampleBloomSource(
         input.screenUV +
@@ -353,7 +352,7 @@ float4 BloomDownsampleFragment(
 ) : SV_TARGET
 {
     float2 offset =
-        _BloomSourceSize.zw * 0.25;
+        _BloomTargetSize.zw * 0.25;
 
     float4 color = SAMPLE_TEXTURE2D_LOD(
         _SourceTexture,
@@ -395,7 +394,7 @@ float4 BloomBlurHorizontal5Fragment(
 ) : SV_TARGET
 {
     float offset =
-        _BloomSourceSize.z *
+        _BloomTargetSize.z *
         _BloomWidth;
 
     float2 uv = input.screenUV;
@@ -444,7 +443,7 @@ float4 BloomBlurVertical5Fragment(
 ) : SV_TARGET
 {
     float offset =
-        _BloomSourceSize.w *
+        _BloomTargetSize.w *
         _BloomWidth;
 
     float2 uv = input.screenUV;
@@ -493,7 +492,7 @@ float4 BloomBlurHorizontal9Fragment(
 ) : SV_TARGET
 {
     float offset =
-        _BloomSourceSize.z *
+        _BloomTargetSize.z *
         _BloomWidth *
         1.5;
 
@@ -571,7 +570,7 @@ float4 BloomBlurVertical9Fragment(
 ) : SV_TARGET
 {
     float offset =
-        _BloomSourceSize.w *
+        _BloomTargetSize.w *
         _BloomWidth *
         1.5;
 

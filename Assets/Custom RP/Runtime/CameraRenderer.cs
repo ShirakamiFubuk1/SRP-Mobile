@@ -42,7 +42,7 @@ namespace srpMobile
             bloomThresholdId = Shader.PropertyToID("_BloomThreshold"),
             bloomIntensityId = Shader.PropertyToID("_BloomIntensity"),
             bloomExposureScaleId = Shader.PropertyToID("_BloomExposureScale"),
-            bloomSourceSizeId = Shader.PropertyToID("_BloomSourceSize"),
+            bloomTargetSizeId = Shader.PropertyToID("_BloomTargetSize"),
             bloomWidthId = Shader.PropertyToID("_BloomWidth"),
             averageIlluminanceId = Shader.PropertyToID("_AverageIlluminance"),
             weatherColorId = Shader.PropertyToID("_WeatherColor"),
@@ -532,9 +532,9 @@ namespace srpMobile
 
             DrawBloomPass(
                 new RenderTargetIdentifier(colorAttachmentId),
-                bufferSize.x,
-                bufferSize.y,
                 new RenderTargetIdentifier(bloomTexture1Id),
+                thirdWidth,
+                thirdHeight,
                 bloomPrefilterPass
             );
 
@@ -548,25 +548,25 @@ namespace srpMobile
 
             DrawBloomPass(
                 new RenderTargetIdentifier(bloomTexture1Id),
-                thirdWidth,
-                thirdHeight,
                 new RenderTargetIdentifier(bloomTexture2Id),
+                quarterWidth,
+                quarterHeight,
                 bloomDownsamplePass
             );
 
             DrawBloomPass(
                 new RenderTargetIdentifier(bloomTexture2Id),
+                new RenderTargetIdentifier(bloomTemp1Id),
                 quarterWidth,
                 quarterHeight,
-                new RenderTargetIdentifier(bloomTemp1Id),
                 bloomHorizontal5Pass
             );
 
             DrawBloomPass(
                 new RenderTargetIdentifier(bloomTemp1Id),
+                new RenderTargetIdentifier(bloomTexture2Id),
                 quarterWidth,
                 quarterHeight,
-                new RenderTargetIdentifier(bloomTexture2Id),
                 bloomVertical5Pass
             );
 
@@ -579,17 +579,17 @@ namespace srpMobile
 
             DrawBloomPass(
                 new RenderTargetIdentifier(bloomTexture2Id),
+                new RenderTargetIdentifier(bloomTemp2Id),
                 eighthWidth,
                 eighthHeight,
-                new RenderTargetIdentifier(bloomTemp2Id),
                 bloomHorizontal9Pass
             );
 
             DrawBloomPass(
                 new RenderTargetIdentifier(bloomTemp2Id),
+                new RenderTargetIdentifier(bloomTexture3Id),
                 eighthWidth,
                 eighthHeight,
-                new RenderTargetIdentifier(bloomTexture3Id),
                 bloomVertical9Pass
             );
 
@@ -601,23 +601,27 @@ namespace srpMobile
             buffer.ReleaseTemporaryRT(bloomTemp2Id);
         }
 
-        // [新增] 所有 Bloom 全屏 Pass 共用的绘制方法
+        // 所有 Bloom 全屏 Pass 共用的绘制方法。
         void DrawBloomPass(
             RenderTargetIdentifier sourceTexture,
-            int sourceWidth,
-            int sourceHeight,
             RenderTargetIdentifier destinationTexture,
+            int targetWidth,
+            int targetHeight,
             int pass
         )
         {
-            // 每一个 Pass 绘制前更新：
-            // 1. _SourceTexture
-            // 2. 输入纹理宽高
-            // 3. 输入纹理的 Texel Size
-            SetBloomSource(
-                sourceTexture,
-                sourceWidth,
-                sourceHeight
+            buffer.SetGlobalTexture(
+                sourceTextureId,
+                sourceTexture
+            );
+            buffer.SetGlobalVector(
+                bloomTargetSizeId,
+                new Vector4(
+                    targetWidth,
+                    targetHeight,
+                    1f / targetWidth,
+                    1f / targetHeight
+                )
             );
 
             buffer.SetRenderTarget(
@@ -798,26 +802,5 @@ namespace srpMobile
             buffer.EndSample(finalPostFXSampleName);
         }
         
-        void SetBloomSource(
-            RenderTargetIdentifier source,
-            int sourceWidth,
-            int sourceHeight
-        )
-        {
-            buffer.SetGlobalTexture(
-                sourceTextureId,
-                source
-            );
-
-            buffer.SetGlobalVector(
-                bloomSourceSizeId,
-                new Vector4(
-                    sourceWidth,
-                    sourceHeight,
-                    1f / sourceWidth,
-                    1f / sourceHeight
-                )
-            );
-        }
     }
 }
