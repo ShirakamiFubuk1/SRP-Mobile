@@ -17,8 +17,6 @@ namespace srpMobile
             exposureScale = 1f
         };
 
-        public bool IsBloomActive => enabled && bloom.enabled;
-
         [Serializable]
         public struct BloomSettings
         {

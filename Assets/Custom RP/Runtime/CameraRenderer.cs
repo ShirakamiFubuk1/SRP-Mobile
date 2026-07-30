@@ -51,7 +51,7 @@ namespace srpMobile
         
         Texture2D missingTexture;
         
-        bool useHDR, useBloomTextures, useScaledRendering, useColorTexture, useDepthTexture,
+        bool useHDR, usePostFX, useBloomTextures, useScaledRendering, useColorTexture, useDepthTexture,
             useIntermediateBuffer;
         
         static CameraSettings defaultCameraSettings = new CameraSettings();
@@ -122,12 +122,22 @@ namespace srpMobile
             {
                 return;
             }
-            useHDR = bufferSettings.allowHDR && camera.allowHDR;
-            useBloomTextures =
-                useHDR &&
+            
+            useHDR =
+                bufferSettings.allowHDR &&
+                camera.allowHDR;
+
+            usePostFX =
                 postFXSettings != null &&
-                postFXSettings.IsBloomActive &&
+                postFXSettings.enabled &&
                 camera.cameraType != CameraType.Reflection;
+
+            useBloomTextures =
+                usePostFX &&
+                useHDR &&
+                postFXSettings.bloom.enabled &&
+                postFXSettings.bloom.intensity > 0f;
+
             if (useScaledRendering)
             {
                 bufferSize.x = Mathf.Max(
@@ -155,8 +165,6 @@ namespace srpMobile
             }
             DrawTransparent(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
-            
-            bool usePostFX = useBloomTextures;
             
             if (useBloomTextures)
             {
@@ -197,7 +205,7 @@ namespace srpMobile
             CameraClearFlags flags = camera.clearFlags;
             
             useIntermediateBuffer =
-                useHDR || useBloomTextures || useScaledRendering ||
+                useHDR || usePostFX || useScaledRendering ||
                 useColorTexture || useDepthTexture;
             if (useIntermediateBuffer)
             {
@@ -675,7 +683,9 @@ namespace srpMobile
             
             buffer.SetGlobalFloat(
                 bloomIntensityId,
-                bloomSettings.intensity
+                useBloomTextures
+                    ? bloomSettings.intensity
+                    : 0f
             );
 
             buffer.SetGlobalVector(
@@ -709,21 +719,38 @@ namespace srpMobile
                 new RenderTargetIdentifier(colorAttachmentId)
             );
 
-            // Tex1、Tex2、Tex3。
-            // GetTemporaryRT 已经会用这些 ID 注册全局纹理，
-            // 这里再次显式绑定是为了让关系更清楚。
-            buffer.SetGlobalTexture(
-                bloomTexture1Id,
-                new RenderTargetIdentifier(bloomTexture1Id)
-            );
-            buffer.SetGlobalTexture(
-                bloomTexture2Id,
-                new RenderTargetIdentifier(bloomTexture2Id)
-            );
-            buffer.SetGlobalTexture(
-                bloomTexture3Id,
-                new RenderTargetIdentifier(bloomTexture3Id)
-            );
+            if (useBloomTextures)
+            {
+                buffer.SetGlobalTexture(
+                    bloomTexture1Id,
+                    new RenderTargetIdentifier(bloomTexture1Id)
+                );
+                buffer.SetGlobalTexture(
+                    bloomTexture2Id,
+                    new RenderTargetIdentifier(bloomTexture2Id)
+                );
+                buffer.SetGlobalTexture(
+                    bloomTexture3Id,
+                    new RenderTargetIdentifier(bloomTexture3Id)
+                );
+            }
+            else
+            {
+                // Bloom 关闭时仍然执行 FinalPostFX，
+                // 因此给三个采样槽提供有效的黑色纹理。
+                buffer.SetGlobalTexture(
+                    bloomTexture1Id,
+                    Texture2D.blackTexture
+                );
+                buffer.SetGlobalTexture(
+                    bloomTexture2Id,
+                    Texture2D.blackTexture
+                );
+                buffer.SetGlobalTexture(
+                    bloomTexture3Id,
+                    Texture2D.blackTexture
+                );
+            }
 
             // 继续兼容当前 Camera 的最终混合模式。
             buffer.SetGlobalFloat(
