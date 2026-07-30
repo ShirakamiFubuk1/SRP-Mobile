@@ -565,8 +565,8 @@ namespace srpMobile
 
             DrawBloomPass(
                 new RenderTargetIdentifier(bloomTexture2Id),
-                quarterWidth,
-                quarterHeight,
+                eighthWidth,
+                eighthHeight,
                 new RenderTargetIdentifier(bloomTemp2Id),
                 bloomHorizontal9Pass
             );
