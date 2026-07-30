@@ -75,8 +75,6 @@ namespace srpMobile
         const string finalBlitSampleName = "Final Blit";
         const string finalPostFXSampleName = "Final Post FX";
 
-        const float bloomThreshold = 0.8f;
-        
         public const float renderScaleMin = 0.1f, renderScaleMax = 2f;
         
         const int
@@ -91,6 +89,7 @@ namespace srpMobile
         public void Render(
             ScriptableRenderContext context, Camera camera,
             CameraBufferSettings bufferSettings,
+            PostFXSettings postFXSettings,
             bool useDynamicBatching, bool useGPUInstancing
         )
         {
@@ -126,6 +125,8 @@ namespace srpMobile
             useHDR = bufferSettings.allowHDR && camera.allowHDR;
             useBloomTextures =
                 useHDR &&
+                postFXSettings != null &&
+                postFXSettings.IsBloomActive &&
                 camera.cameraType != CameraType.Reflection;
             if (useScaledRendering)
             {
@@ -159,11 +160,14 @@ namespace srpMobile
             
             if (useBloomTextures)
             {
-                GenerateBloomTextures();
+                GenerateBloomTextures(postFXSettings.bloom);
             }
             if (usePostFX)
             {
-                DrawPostFX(cameraSettings.finalBlendMode);
+                DrawPostFX(
+                    cameraSettings.finalBlendMode,
+                    postFXSettings.bloom
+                );
                 ExecuteBuffer();
             }
             else if (useIntermediateBuffer)
@@ -437,7 +441,9 @@ namespace srpMobile
             );
         }
 
-        void GenerateBloomTextures()
+        void GenerateBloomTextures(
+            PostFXSettings.BloomSettings bloomSettings
+        )
         {
             RenderTextureFormat bloomFormat = useHDR
                 ? RenderTextureFormat.DefaultHDR
@@ -500,15 +506,15 @@ namespace srpMobile
 
             buffer.SetGlobalFloat(
                 bloomThresholdId,
-                bloomThreshold
+                bloomSettings.threshold
             );
             buffer.SetGlobalFloat(
                 bloomExposureScaleId,
-                1f
+                bloomSettings.exposureScale
             );
             buffer.SetGlobalFloat(
                 bloomWidthId,
-                1f
+                bloomSettings.width
             );
 
             // 第一步：
@@ -661,14 +667,15 @@ namespace srpMobile
         }
         
         void DrawPostFX(
-            CameraSettings.FinalBlendMode finalBlendMode
+            CameraSettings.FinalBlendMode finalBlendMode,
+            PostFXSettings.BloomSettings bloomSettings
         )
         {
             buffer.BeginSample(finalPostFXSampleName);
             
             buffer.SetGlobalFloat(
                 bloomIntensityId,
-                1.5f
+                bloomSettings.intensity
             );
 
             buffer.SetGlobalVector(
