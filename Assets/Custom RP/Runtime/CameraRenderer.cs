@@ -130,6 +130,7 @@ namespace srpMobile
             usePostFX =
                 postFXSettings != null &&
                 postFXSettings.enabled &&
+                cameraSettings.allowPostFX &&
                 camera.cameraType != CameraType.Reflection;
 
             useBloomTextures =
