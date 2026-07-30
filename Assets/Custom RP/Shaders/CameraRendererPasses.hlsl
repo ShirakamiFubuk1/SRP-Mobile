@@ -220,7 +220,7 @@ float4 FinalPostFXFragment(Varyings input) : SV_TARGET
     // Bloom 合成。
     float3 colorWithBloom =
         baseColor +
-        bloomColor * _BloomIntensity;
+        bloomColor * _BloomIntensity * 1.5;
 
     // 曝光。
     float3 exposedColor =

@@ -137,7 +137,7 @@ namespace srpMobile
                 usePostFX &&
                 useHDR &&
                 postFXSettings.bloom.enabled &&
-                postFXSettings.bloom.intensity > 0.01f;
+                postFXSettings.bloom.intensity > 0.001f;
 
             if (useScaledRendering)
             {
