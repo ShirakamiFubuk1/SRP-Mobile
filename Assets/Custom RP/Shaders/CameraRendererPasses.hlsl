@@ -5,8 +5,6 @@ TEXTURE2D(_SourceTexture);
 TEXTURE2D(_BloomTexture1);
 TEXTURE2D(_BloomTexture2);
 TEXTURE2D(_BloomTexture3);
-TEXTURE2D(_BloomTemp1);
-TEXTURE2D(_BloomTemp2);
 
 float _BloomThreshold;
 float4 _AverageIlluminance;
