@@ -106,7 +106,7 @@
 		
 		Pass
 		{
-		    Name "Final Post FX"
+		    Name "Final Bloom And Tone Mapping"
 
 		    Blend [_CameraSrcBlend] [_CameraDstBlend]
 
@@ -114,6 +114,32 @@
 		        #pragma target 3.5
 		        #pragma vertex DefaultPassVertex
 		        #pragma fragment FinalPostFXFragment
+		    ENDHLSL
+		}
+
+		Pass
+		{
+		    Name "Final Bloom"
+
+		    Blend [_CameraSrcBlend] [_CameraDstBlend]
+
+		    HLSLPROGRAM
+		        #pragma target 3.5
+		        #pragma vertex DefaultPassVertex
+		        #pragma fragment FinalPostFXWithoutToneMappingFragment
+		    ENDHLSL
+		}
+
+		Pass
+		{
+		    Name "Final Tone Mapping"
+
+		    Blend [_CameraSrcBlend] [_CameraDstBlend]
+
+		    HLSLPROGRAM
+		        #pragma target 3.5
+		        #pragma vertex DefaultPassVertex
+		        #pragma fragment FinalToneMappingWithoutBloomFragment
 		    ENDHLSL
 		}
 	}

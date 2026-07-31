@@ -12,9 +12,18 @@ namespace srpMobile
         {
             enabled = true,
             threshold = 0.8f,
-            intensity = 1.5f,
+            intensity = 0.25f,
             width = 1f,
             exposureScale = 1f
+        };
+
+        public ToneMappingSettings toneMapping = new ToneMappingSettings
+        {
+            enabled = true,
+            averageIlluminance = new Vector4(1.6f, 1.6f, 1.6f, 1f),
+            inverseGamma = 0.4545f,
+            weatherColor = Color.white,
+            adjustAlpha = 0f
         };
 
         [Serializable]
@@ -33,6 +42,22 @@ namespace srpMobile
 
             [Min(0f)]
             public float exposureScale;
+        }
+
+        [Serializable]
+        public struct ToneMappingSettings
+        {
+            public bool enabled;
+
+            public Vector4 averageIlluminance;
+
+            [Min(0.0001f)]
+            public float inverseGamma;
+
+            public Color weatherColor;
+
+            [Min(0f)]
+            public float adjustAlpha;
         }
     }
 }

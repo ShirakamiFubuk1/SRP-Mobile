@@ -178,7 +178,7 @@ float4 BloomPrefilterPassFragment(
     );
 }
 
-float4 FinalPostFXFragment(Varyings input) : SV_TARGET
+float4 GetSceneColor(Varyings input)
 {
     // Tex0：包含 Opaque 和 Transparent 的完整 HDR 场景。
     float4 rawSceneColor = SAMPLE_TEXTURE2D_LOD(
@@ -189,10 +189,18 @@ float4 FinalPostFXFragment(Varyings input) : SV_TARGET
     );
 
     // 限制极端 HDR 数值。
-    float3 baseColor = min(
+    rawSceneColor.rgb = min(
         rawSceneColor.rgb,
         float3(60.0, 60.0, 60.0)
     );
+
+    return rawSceneColor;
+}
+
+float4 GetColorWithBloom(Varyings input)
+{
+    float4 rawSceneColor =
+        GetSceneColor(input);
 
     // Tex1、Tex2、Tex3：三张不同分辨率的 Bloom。
     float3 bloomColor =
@@ -219,15 +227,30 @@ float4 FinalPostFXFragment(Varyings input) : SV_TARGET
 
     // Bloom 合成。
     float3 colorWithBloom =
-        baseColor +
+        rawSceneColor.rgb +
         bloomColor * _BloomIntensity * 1.5;
 
+    return float4(
+        colorWithBloom,
+        rawSceneColor.a
+    );
+}
+
+float4 FinalPostFXWithoutToneMappingFragment(
+    Varyings input
+) : SV_TARGET
+{
+    return GetColorWithBloom(input);
+}
+
+float4 ApplyToneMapping(float4 colorWithBloom)
+{
     // 曝光。
     float3 exposedColor =
-        colorWithBloom /
+        colorWithBloom.rgb /
         max(_AverageIlluminance.x, 0.000001);
 
-    // 对应原 Shader 的 AvageIlluminate.w。
+    // 对应原 Shader 中 AverageIlluminance.w 的曲线控制值。
     float shoulder = saturate(
         _AverageIlluminance.w
     );
@@ -315,13 +338,13 @@ float4 FinalPostFXFragment(Varyings input) : SV_TARGET
     float4 tintedColor = saturate(
         float4(
             saturatedColor,
-            rawSceneColor.a
+            colorWithBloom.a
         ) *
         _WeatherColor
     );
 
-    // 当前项目是 Linear Color Space。
-    // _InvGamma 默认应先设为 1，避免重复 Gamma。
+    // 原方案使用 0.4545。当前项目是 Linear Color Space，
+    // 可以通过配置切换为 1，检查最终目标是否发生二次 Gamma。
     float3 finalColor = pow(
         max(tintedColor.rgb, 0.0),
         float3(
@@ -342,6 +365,22 @@ float4 FinalPostFXFragment(Varyings input) : SV_TARGET
     return float4(
         finalColor,
         finalAlpha
+    );
+}
+
+float4 FinalPostFXFragment(Varyings input) : SV_TARGET
+{
+    return ApplyToneMapping(
+        GetColorWithBloom(input)
+    );
+}
+
+float4 FinalToneMappingWithoutBloomFragment(
+    Varyings input
+) : SV_TARGET
+{
+    return ApplyToneMapping(
+        GetSceneColor(input)
     );
 }
 

@@ -51,7 +51,8 @@ namespace srpMobile
         
         Texture2D missingTexture;
         
-        bool useHDR, usePostFX, useBloomTextures, useScaledRendering, useColorTexture, useDepthTexture,
+        bool useHDR, usePostFX, useBloomTextures, useToneMapping,
+            useScaledRendering, useColorTexture, useDepthTexture,
             useIntermediateBuffer;
         
         static CameraSettings defaultCameraSettings = new CameraSettings();
@@ -84,7 +85,9 @@ namespace srpMobile
             bloomVertical5Pass = 5,
             bloomHorizontal9Pass = 6,
             bloomVertical9Pass = 7,
-            finalPostFXPass = 8;
+            finalBloomAndToneMappingPass = 8,
+            finalBloomPass = 9,
+            finalToneMappingPass = 10;
         
         public void Render(
             ScriptableRenderContext context, Camera camera,
@@ -127,17 +130,26 @@ namespace srpMobile
                 bufferSettings.allowHDR &&
                 camera.allowHDR;
 
-            usePostFX =
+            bool postFXEnabled =
                 postFXSettings != null &&
                 postFXSettings.enabled &&
                 cameraSettings.allowPostFX &&
                 camera.cameraType != CameraType.Reflection;
 
             useBloomTextures =
-                usePostFX &&
+                postFXEnabled &&
                 useHDR &&
                 postFXSettings.bloom.enabled &&
                 postFXSettings.bloom.intensity > 0.001f;
+
+            useToneMapping =
+                postFXEnabled &&
+                useHDR &&
+                postFXSettings.toneMapping.enabled;
+
+            usePostFX =
+                useBloomTextures ||
+                useToneMapping;
 
             if (useScaledRendering)
             {
@@ -175,7 +187,8 @@ namespace srpMobile
             {
                 DrawPostFX(
                     cameraSettings.finalBlendMode,
-                    postFXSettings.bloom
+                    postFXSettings.bloom,
+                    postFXSettings.toneMapping
                 );
                 ExecuteBuffer();
             }
@@ -681,42 +694,31 @@ namespace srpMobile
         
         void DrawPostFX(
             CameraSettings.FinalBlendMode finalBlendMode,
-            PostFXSettings.BloomSettings bloomSettings
+            PostFXSettings.BloomSettings bloomSettings,
+            PostFXSettings.ToneMappingSettings toneMappingSettings
         )
         {
             buffer.BeginSample(finalPostFXSampleName);
-            
-            buffer.SetGlobalFloat(
-                bloomIntensityId,
-                useBloomTextures
-                    ? bloomSettings.intensity
-                    : 0f
-            );
 
-            buffer.SetGlobalVector(
-                averageIlluminanceId,
-                new Vector4(
-                    1f, // 曝光除数
-                    0f,
-                    0f,
-                    0f  // Shoulder
-                )
-            );
-
-            buffer.SetGlobalColor(
-                weatherColorId,
-                Color.white
-            );
-
-            buffer.SetGlobalFloat(
-                inverseGammaId,
-                1f
-            );
-
-            buffer.SetGlobalFloat(
-                adjustAlphaId,
-                0f
-            );
+            if (useToneMapping)
+            {
+                buffer.SetGlobalVector(
+                    averageIlluminanceId,
+                    toneMappingSettings.averageIlluminance
+                );
+                buffer.SetGlobalColor(
+                    weatherColorId,
+                    toneMappingSettings.weatherColor
+                );
+                buffer.SetGlobalFloat(
+                    inverseGammaId,
+                    toneMappingSettings.inverseGamma
+                );
+                buffer.SetGlobalFloat(
+                    adjustAlphaId,
+                    toneMappingSettings.adjustAlpha
+                );
+            }
 
             // Tex0：包含 Opaque 和 Transparent 的完整 HDR 场景。
             buffer.SetGlobalTexture(
@@ -726,6 +728,10 @@ namespace srpMobile
 
             if (useBloomTextures)
             {
+                buffer.SetGlobalFloat(
+                    bloomIntensityId,
+                    bloomSettings.intensity
+                );
                 buffer.SetGlobalTexture(
                     bloomTexture1Id,
                     new RenderTargetIdentifier(bloomTexture1Id)
@@ -737,23 +743,6 @@ namespace srpMobile
                 buffer.SetGlobalTexture(
                     bloomTexture3Id,
                     new RenderTargetIdentifier(bloomTexture3Id)
-                );
-            }
-            else
-            {
-                // Bloom 关闭时仍然执行 FinalPostFX，
-                // 因此给三个采样槽提供有效的黑色纹理。
-                buffer.SetGlobalTexture(
-                    bloomTexture1Id,
-                    Texture2D.blackTexture
-                );
-                buffer.SetGlobalTexture(
-                    bloomTexture2Id,
-                    Texture2D.blackTexture
-                );
-                buffer.SetGlobalTexture(
-                    bloomTexture3Id,
-                    Texture2D.blackTexture
                 );
             }
 
@@ -782,10 +771,16 @@ namespace srpMobile
             buffer.SetViewport(camera.pixelRect);
 
             // 三角形数量为 3，生成覆盖全屏的单个大三角形。
+            int finalPass = useToneMapping
+                ? useBloomTextures
+                    ? finalBloomAndToneMappingPass
+                    : finalToneMappingPass
+                : finalBloomPass;
+
             buffer.DrawProcedural(
                 Matrix4x4.identity,
                 material,
-                finalPostFXPass,
+                finalPass,
                 MeshTopology.Triangles,
                 3
             );
