@@ -21,7 +21,6 @@ namespace srpMobile
         {
             enabled = true,
             averageIlluminance = new Vector4(1.6f, 1.6f, 1.6f, 1f),
-            inverseGamma = 0.4545f,
             weatherColor = Color.white,
             adjustAlpha = 0f
         };
@@ -50,9 +49,6 @@ namespace srpMobile
             public bool enabled;
 
             public Vector4 averageIlluminance;
-
-            [Min(0.0001f)]
-            public float inverseGamma;
 
             public Color weatherColor;
 

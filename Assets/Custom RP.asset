@@ -34,7 +34,6 @@ MonoBehaviour:
     toneMapping:
       enabled: 1
       averageIlluminance: {x: 1.6, y: 1.6, z: 1.6, w: 1}
-      inverseGamma: 1
       weatherColor: {r: 1, g: 1, b: 1, a: 1}
       adjustAlpha: 0
   cameraRendererShader: {fileID: 4800000, guid: e8f85eca57117dc4c91633d8828c58df,
