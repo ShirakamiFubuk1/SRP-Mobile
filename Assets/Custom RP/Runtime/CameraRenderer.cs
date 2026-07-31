@@ -52,7 +52,7 @@ namespace srpMobile
         
         bool useHDR, usePostFX, useBloomTextures, useToneMapping,
             useScaledRendering, useColorTexture, useDepthTexture,
-            useIntermediateBuffer;
+            useIntermediateBuffer, isUIOverlay;
         
         static CameraSettings defaultCameraSettings = new CameraSettings();
         
@@ -105,9 +105,18 @@ namespace srpMobile
             colorTextureDivisor =
                 bufferSettings.ColorTextureDivisor;
             
-            if (camera.cameraType == CameraType.Reflection)
+            isUIOverlay = cameraSettings.renderType ==
+                          CameraSettings.CameraRenderType.UIOverlay;
+            
+            if (isUIOverlay)
+            {
+                useColorTexture = false;
+                useDepthTexture = false;
+            }
+            else if (camera.cameraType == CameraType.Reflection)
             {
                 useColorTexture = bufferSettings.copyColorReflection;
+
                 useDepthTexture = bufferSettings.copyDepthReflection;
             }
             else
@@ -116,7 +125,8 @@ namespace srpMobile
                 useDepthTexture = bufferSettings.copyDepth && cameraSettings.copyDepth;
             }
 
-            float renderScale = Mathf.Clamp(bufferSettings.renderScale, renderScaleMin, renderScaleMax);
+            float renderScale = isUIOverlay ? 1f : 
+                Mathf.Clamp(cameraSettings.GetRenderScale(bufferSettings.renderScale), renderScaleMin, renderScaleMax);
             useScaledRendering = renderScale < 0.99f || renderScale > 1.01f;
             PrepareBuffer();
             PrepareForSceneWindow();
@@ -125,30 +135,21 @@ namespace srpMobile
                 return;
             }
             
-            useHDR =
-                bufferSettings.allowHDR &&
-                camera.allowHDR;
+            useHDR = !isUIOverlay && bufferSettings.allowHDR && camera.allowHDR;
 
             bool postFXEnabled =
-                postFXSettings != null &&
-                postFXSettings.enabled &&
-                cameraSettings.allowPostFX &&
-                camera.cameraType != CameraType.Reflection;
+                !isUIOverlay && postFXSettings != null && postFXSettings.enabled &&
+                cameraSettings.allowPostFX && camera.cameraType != CameraType.Reflection;
 
             useBloomTextures =
-                postFXEnabled &&
-                useHDR &&
-                postFXSettings.bloom.enabled &&
+                postFXEnabled && useHDR && postFXSettings.bloom.enabled &&
                 postFXSettings.bloom.intensity > 0.001f;
 
             useToneMapping =
-                postFXEnabled &&
-                useHDR &&
-                postFXSettings.toneMapping.enabled;
+                postFXEnabled && useHDR && postFXSettings.toneMapping.enabled;
 
             usePostFX =
-                useBloomTextures ||
-                useToneMapping;
+                useBloomTextures || useToneMapping;
 
             if (useScaledRendering)
             {
@@ -215,49 +216,67 @@ namespace srpMobile
         void Setup()
         {
             context.SetupCameraProperties(camera);
-            CameraClearFlags flags = camera.clearFlags;
             
             useIntermediateBuffer =
-                useHDR || usePostFX || useScaledRendering ||
-                useColorTexture || useDepthTexture;
-            if (useIntermediateBuffer)
+                !isUIOverlay &&
+                (
+                    useHDR || usePostFX || useScaledRendering ||
+                    useColorTexture || useDepthTexture
+                );
+            
+            if (isUIOverlay)
             {
-                if (flags > CameraClearFlags.Color)
-                {
-                    flags = CameraClearFlags.Color;
-                }
-                buffer.GetTemporaryRT(
-                    colorAttachmentId, bufferSize.x, bufferSize.y,
-                    0, FilterMode.Bilinear, useHDR ?
-                        RenderTextureFormat.DefaultHDR :RenderTextureFormat.Default
-                );
-                buffer.GetTemporaryRT(
-                    depthAttachmentId, bufferSize.x, bufferSize.y,
-                    32, FilterMode.Point, RenderTextureFormat.Depth
-                );
                 buffer.SetRenderTarget(
-                    colorAttachmentId,
-                    RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                    depthAttachmentId,
-                    RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
+                    BuiltinRenderTextureType.CameraTarget,
+                    RenderBufferLoadAction.Load, RenderBufferStoreAction.Store
+                );
+
+                // SetRenderTarget 会重置 Viewport，
+                // 所以需要重新设置 Camera 的真实区域。
+                buffer.SetViewport(camera.pixelRect);
+
+                // 只清理深度，不清理主相机颜色。
+                buffer.ClearRenderTarget(true, false, Color.clear);
+            }
+            else
+            {
+                CameraClearFlags flags = camera.clearFlags;
+                
+                if (useIntermediateBuffer)
+                {
+                    if (flags > CameraClearFlags.Color)
+                    {
+                        flags = CameraClearFlags.Color;
+                    }
+                    buffer.GetTemporaryRT(
+                        colorAttachmentId, bufferSize.x, bufferSize.y,
+                        0, FilterMode.Bilinear, useHDR ?
+                            RenderTextureFormat.DefaultHDR :RenderTextureFormat.Default
+                    );
+                    buffer.GetTemporaryRT(
+                        depthAttachmentId, bufferSize.x, bufferSize.y,
+                        32, FilterMode.Point, RenderTextureFormat.Depth
+                    );
+                    buffer.SetRenderTarget(
+                        colorAttachmentId,
+                        RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        depthAttachmentId,
+                        RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
+                    );
+                }
+                
+                bool clearColor =
+                    flags == CameraClearFlags.Color || flags == CameraClearFlags.Skybox;
+
+                bool clearDepth =
+                    flags != CameraClearFlags.Nothing;
+                
+                buffer.ClearRenderTarget(clearDepth, clearColor,
+                    clearColor ? 
+                        camera.backgroundColor.linear : Color.clear
                 );
             }
-            
-            bool clearColor =
-                flags == CameraClearFlags.Color ||
-                flags == CameraClearFlags.Skybox;
-
-            bool clearDepth =
-                flags != CameraClearFlags.Nothing;
-            
-            buffer.ClearRenderTarget(
-                clearDepth,
-                clearColor,
-                clearColor
-                    ? camera.backgroundColor.linear
-                    : Color.clear
-            );
-            
+                            
             buffer.BeginSample(SampleName);
             buffer.SetGlobalTexture(colorTextureId, missingTexture);
             buffer.SetGlobalTexture(depthTextureId, missingTexture);

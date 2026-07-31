@@ -7,14 +7,23 @@ namespace srpMobile
     [Serializable]
     public class CameraSettings
     {
+        public enum CameraRenderType
+        {
+            Default,
+            UIOverlay
+        }
+
+        public CameraRenderType renderType =
+            CameraRenderType.Default;
+        
         // public bool maskLights = false;
         
-        // public enum RenderScaleMode { Inherit, Multiply, Override }
+        public enum RenderScaleMode { Inherit, Multiply, Override }
 
-        // public RenderScaleMode renderScaleMode = RenderScaleMode.Inherit;
+        public RenderScaleMode renderScaleMode = RenderScaleMode.Inherit;
 
-        // [Range(CameraRenderer.renderScaleMin, CameraRenderer.renderScaleMax)]
-        // public float renderScale = 1f;
+        [Range(CameraRenderer.renderScaleMin, CameraRenderer.renderScaleMax)]
+        public float renderScale = 1f;
         
         public bool allowPostFX = true;
 
@@ -35,13 +44,15 @@ namespace srpMobile
             destination = BlendMode.Zero
         };
 
-        // public float GetRenderScale(float scale)
-        // {
-        //     return
-        //         renderScaleMode == RenderScaleMode.Inherit ? scale :
-        //         renderScaleMode == RenderScaleMode.Override ? renderScale :
-        //         scale * renderScale;
-        // }
+        public float GetRenderScale(float scale)
+        {
+            return
+                renderScaleMode == RenderScaleMode.Inherit
+                    ? scale
+                    : renderScaleMode == RenderScaleMode.Override
+                        ? renderScale
+                        : scale * renderScale;
+        }
         
         // public bool allowFXAA = false;
         //
