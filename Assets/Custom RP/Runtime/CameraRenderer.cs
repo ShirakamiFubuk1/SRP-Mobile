@@ -46,7 +46,6 @@ namespace srpMobile
             bloomWidthId = Shader.PropertyToID("_BloomWidth"),
             averageIlluminanceId = Shader.PropertyToID("_AverageIlluminance"),
             weatherColorId = Shader.PropertyToID("_WeatherColor"),
-            inverseGammaId = Shader.PropertyToID("_InvGamma"),
             adjustAlphaId = Shader.PropertyToID("_AdjustAlpha");
         
         Texture2D missingTexture;
@@ -709,10 +708,6 @@ namespace srpMobile
                 buffer.SetGlobalColor(
                     weatherColorId,
                     toneMappingSettings.weatherColor
-                );
-                buffer.SetGlobalFloat(
-                    inverseGammaId,
-                    toneMappingSettings.inverseGamma
                 );
                 buffer.SetGlobalFloat(
                     adjustAlphaId,

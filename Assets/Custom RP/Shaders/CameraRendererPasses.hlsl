@@ -10,7 +10,6 @@ float _BloomThreshold;
 float4 _AverageIlluminance;
 float4 _WeatherColor;
 float _BloomIntensity;
-float _InvGamma;
 float _AdjustAlpha;
 float _BloomExposureScale;
 float4 _BloomTargetSize;
@@ -343,17 +342,6 @@ float4 ApplyToneMapping(float4 colorWithBloom)
         _WeatherColor
     );
 
-    // 原方案使用 0.4545。当前项目是 Linear Color Space，
-    // 可以通过配置切换为 1，检查最终目标是否发生二次 Gamma。
-    float3 finalColor = pow(
-        max(tintedColor.rgb, 0.0),
-        float3(
-            _InvGamma,
-            _InvGamma,
-            _InvGamma
-        )
-    );
-
     float adjustedAlpha =
         tintedColor.a * _AdjustAlpha;
 
@@ -363,7 +351,7 @@ float4 ApplyToneMapping(float4 colorWithBloom)
             : tintedColor.a;
 
     return float4(
-        finalColor,
+        tintedColor.rgb,
         finalAlpha
     );
 }
